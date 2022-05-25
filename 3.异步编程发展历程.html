@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <script>
+    // 按时间顺序发生，会导致等待时间过长，且代码可读性不高
+    setTimeout(() => {
+      console.log(1)
+      setTimeout(() => {
+        console.log(2)
+        setTimeout(() => {
+          console.log(3)
+        }, 3000)
+      }, 2000)
+    }, 1000)
+
+    /**
+     * 回调地狱
+     * 理解：即在回调函数中嵌套的有多层的回调函数，导致代码可读性不高
+     * Promise的出现很好的解决了回调地狱所带来的问题
+     */
+
+    /**
+     * 回调函数
+     * 以下函数执行机制就是回调函数，回调函数本身是同步代码
+     * function test(fn) {
+     *   fm()
+     * }
+     * 
+     * test(function () {
+     *   ...
+     * })
+     * 
+     * 
+     * 重点：
+     * javascript中的回调函数结构，默认是同步的结构，由于javascript单线程异步模型的规则，如果想要编写异步的代码，必须使用回调嵌套的形式才能实现
+     * 所以回调函数结构不一定是异步代码，但是异步代码一定是回调函数结构
+     * 
+     * 总结: 回调函数不一定是异步代码，但是异步代码一定会依赖回调函数来实现
+     * 
+     * 
+     */
+
+
+
+    /**
+     * Promise  
+     */
+
+    // new Promise 需要传入一个回调函数为参数，该回调函数会返回两个参数，resolve和reject
+    console.log('起步')
+    const p = new Promise((resolve, reject) => {
+      console.log('调用resolve')
+      resolve('执行了reject') // 当有resolve 和reject 只会执行一个 即符合三个状态直接的关系 一个Promise对象，只能从pending状态变更为fulfilled或rejected种的某一种
+      reject()
+      reject()
+      reject()
+      console.log(1)
+    })
+
+    p.then(() => {
+      console.log('then执行')
+    }).catch(() => {
+      console.log('catch执行')
+    }).finally(() => { // 只要resolve 或者reject中执行一个 都会触发finally的执行
+      console.log('finally执行')
+      0
+    })
+
+    console.log('结束')
+  // 打印： 起步 调用了resolve 结束 catch执行 finally执行
+
+
+    /**
+     * 如果Promise中没有执行resolve或者reject，那么实例对象后面的回调函数内部都不会有输出，
+     * 运行resolve函数之后，then和finally就会执行，运行了reject之后catch和finally就会执行
+     * 
+     * 
+     * Promise的三种状态
+     * pending: 初始状态，在Promise定义初期的状态，此次仅仅做了初始化，并注册了它对象上的所有的任务
+     * fulfilled：已完成，代表成功执行了某一个任务，当resolve执行时，Promise状态就会变更为fulfilled，并且then函数注册的回调函数会开始执行，resolve中传递的参数会进入回调函数作为形参
+     * rejected：已拒绝，代表执行了一次失败任务，或者流程中断，当调用reject函数时，catch注册的回调函数就会触发，并且reject中传递的内容会变成回调函数的形参
+     * 
+     * 三种状态之间的关系
+     * Promise种约定，当对象创建之后 同一个Promise对象，只能从pending状态变更为fulfilled或rejected种的某一种，并且状态一旦变更就不会再改变，此时Promise对象的流程执行完成并且finally函数执行
+     */
+
+    //  模拟链式调用
+    const obj = {
+      then: function () {
+        console.log(this);
+        console.log('then执行')
+        return this
+      }
+    }
+    obj.then().then()
+
+    function MyPromise () {
+      console.log('new 操作')
+    }
+
+    MyPromise.prototype.then = function () {
+      console.log(this)
+      return this // new MyPromise() 将实例返回出去 可以进行链式调用
+    }
+
+
+    const p3 = new MyPromise()
+    p3.then().then().then()
+
+  </script>
+</body>
+
+</html>

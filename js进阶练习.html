@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <script>
+    const user = {
+      name: '小明',
+      age: 18,
+      wife: {
+        name: '小花',
+        age: 17
+      }
+    }
+    // vue2的数据响应原理
+    Object.defineProperty(user, 'name', {
+      get() {
+        console.log('走了vue2的获取数据')
+      },
+      set(target, prop, val) {
+        console.log(target, prop, val, '响应了vue2的响应原理')
+        // user.name = target
+      }
+    })
+    console.log(user.name)
+    user.name = '张三'
+    console.log(user, '-------------')
+    // vue3数据响应原理 有deleteProperty等钩子 但需要结合Reflect内的静态方法进行使用，且Reflect无法构造函数
+    const userProperty = new Proxy(user, {
+      get(target, prop) {
+        console.log('走了获取数据')
+        return Reflect.get(target, prop)
+      },
+      set(target, prop, val) {
+        console.log('走了读取数据', target, prop, val)
+        return Reflect.set(target, prop, val)
+      },
+      deleteProperty(target, prop) {
+        console.log('走了vue3中的delete')
+        return Reflect.deleteProperty(target, prop)
+      }
+    })
+    // vue3当中如果computed传入的是一个回调函数 代表get操作，如果传入的使用是一个对象则可以使用get和set操作
+    // const test = computed(() => {
+    //   return '1111111'
+    // })
+    // const test2 = computed({ 
+    //   get() {
+    //     return '1111'
+    //   },
+    //   set(val) {
+    //     // 可以对数据进行赋值修改
+    //   }
+    // })
+    // watch监听某个数据, watch初始不会执行，第三个参数{  } 使用immediate: true 初始就会执行 deep: true 深度监视
+    // watch(user, () => {
+    //   user.gender = '001'
+    // }, {immediate:true, deep: true})
+
+    // const fullName3 = ref('响应数据')
+    // // watch可以监听多个数据, 监视非响应数据的时候需要使用() => '数据'
+    // watch([() => user.name, () => user.gender, fullName3], () => {})
+
+    // // watchEffect初始会自动执行一次
+    // watchEffect(() => {
+    //   user.gender = '002'
+    // })
+    console.log(userProperty.name)
+    userProperty.name = '小华'
+    userProperty.gender = '男'
+    delete userProperty.name
+    console.log(user, '------123')
+
+    const userList = [
+      {name: '小明', age: 18, isShow: true},
+      {name: '小华', age: 17, isShow: false},
+      {name: '小兰', age: 20, isShow: false}
+    ]
+    const resolvet = userList.filter(list => { return !list.isShow })
+    console.log(resolvet, '---list')
+
+    /** JS进阶学习  */
+    // ths的指向
+    // 以函数为例：函数的调用方式如下三种
+    /**
+     * 1、普通调用 fn(): this指向window
+     * 2、对象调用 obj.eat(): this指向对象
+     * 3、new调用 new fn(): this指向new出来的实例
+     */
+
+     // 函数的上下文调用: 修改this的指向
+     /**
+      * 1、fn.call(修改后的this, 实参1,实参2,.....)
+      * 2、apply(修改后的this, [数组] 数组内放数据,会自动遍历)
+      * 运用场景：当只需要传入一个形参的时候用call,当需要传入多个形参的时候就可以使用apply
+      * 3、fn.bind(修改后的this, 实参1,实参2,.....),传参和call的相同，不同的是bind不会立即执行函数，而是得到一个改变了this之后的新函数
+      * 运用场景：不需要立即执行的函数（定时器，时间处理函数）
+      */
+    //  上下文模式需要注意的点
+    /**
+     * 函数上下文三种方式的调用区别：
+     * 1、传参方式不同: call, 用于单个参数， apply用于多个参数
+     * 2、调用机制不同：call,apply函数会立即执行，bind不会立即执行 （用于修改定时器的this指向）
+    */
+     function fn (a,b) {
+       console.log(this)
+       console.log(a + b)
+       return a + b
+     }
+
+     fn.call({name: '张三'}, 10, 20)
+     fn.apply({ name: '李四' }, [10, 30])
+     let newFn = fn.bind({ name: '王五' }, 10, 50)
+     newFn()
+     let newFn2 = fn.bind({ name: '王五' })
+     newFn(100, 200)
+     console.log(newFn, '---------fn')
+
+     // bind的运用场景
+     let test = function () {
+       console.log(this)
+     }
+     setTimeout(test.bind({ name: '甲乙'}), 3000)
+
+    //  伪数组
+    /**
+     * 伪数组具有数组三要数：数据，下表，长度
+     * 伪数组就是对象: 它的原型指向的是Object的原型，所以无法调用数组原型中的方法
+     * 伪数组转数组的方法：
+     * 1. 通过循环的方式将obj内的数据放入到数组中
+     * 2. 通过apply自动遍历 let arr = [], arr.push.apply(arr, tempObj) 
+     */
+    let tempObj = {
+      0: 21,
+      1: 75,
+      2: 30,
+      3: 10,
+      4: 60,
+      length: 5
+    }
+
+    let arr = []
+
+    
+    console.log(arr.push.apply(arr, tempObj), arr, '--------obj')
+
+    // 伪数组排序
+    /**
+     * 1.将伪数组转为数组，用数组内的上下文的sort进行排序 this 指向的是调用sort的数组
+     * 2.先使用applay将伪数组转为数组，再用sort进行排序 this 指向的是Array.prototype
+     * 3.使用Array.prototype.sort方法，配合使用call的 得到Array.prototype.sort.call(obj, (a, b) => a - b)  this 指向的是伪数组
+     */
+    console.log(Array.prototype.sort.call(tempObj, (a, b) => a - b), '------------type')
+
+    // 借用函数
+    function Person (name, age) {
+      this.name = name
+      this.age = age
+    }
+
+    Person.prototype.eat = function () {
+      console.log('我要吃饭', this.name, this.age)
+    }
+
+    let p1 = new Person('张三', 18)
+    // console.log(p1, p1.eat())
+    function Student (name, age) {
+      this.name = name
+      this.age = age
+    }
+
+    Student.prototype.leran = function () {
+      console.log(this.name, this.age)
+    }
+
+    let s1 = new Student('班长', 18)
+    console.log(s1, s1.leran(), '------------')
+
+    // 需求场景：s1现在想要调用person内的eat方法
+    // 使用到发借用函数，且也改变了this的指向
+    Person.prototype.eat.call(s1)
+
+
+    // 求数组的最大值,最小值
+    let arrData = [10, 20, 30, 40, 100, 70]
+
+    // 方法一：打擂台方法
+    let max = -Infinity // 定义一个最小值，将数组内大于这个max值得 赋值给max 然后再用下一次值和当前max进行比较 最后就得出最大值
+    arrData.forEach(item => {
+      if (item > max) {
+        max = item
+      }
+    })
+    console.log(max, '---------13')
+    // 方法二：利用Math自带API
+    let max2 = Math.max.apply(Math, arrData)
+    let min = Math.min.apply(Math, arrData)
+    console.log(min, '----------')
+
+    // 万能数据类型检测, 因为typeof 无法检测arr 和 null 检测得到得类型是Object 由此引出下面万能类型检测法Object.prototype.toString
+    let newType = Object.prototype.toString.call(arrData) // [object Array]
+    console.log(newType, '-----------131313')
+
+    // 递归函数：函数中调用自己 就叫递归函数
+    /**
+     * 递归相当于循环： 递归需要有结束语句，要不然会陷入死循环 
+     */
+
+    //  用递归做一个累加操作
+    function getSum (n) {
+      if (n == 1) {
+        return 1
+      } else {
+        return n + getSum(n - 1)
+      }
+    }
+
+    // 浅拷贝和深拷贝
+    /**
+     *1、浅拷贝，拷贝的只是数据的地址，当修改拷贝过来的数据的时候，会导致元数据的值一同发生改变
+     *2、深拷贝， JSON.parse(JSON.stringfy()), clice(0)。
+     *复杂数据的深拷贝
+     */
+    //  原数组
+    let parseData = {
+      name: '一朵小红花',
+      age: 18,
+      size: [175, 20, 41, 50],
+      class: {
+        name: '幼儿园大班',
+        fraction: [80, 60, 70, 90, 99, 100]
+      }
+    }
+
+    let newParseData =  {}
+    function deepCopy (newObj, obj) {
+      for(let key in obj) {
+        if (obj[key] instanceof Array) {
+          newObj[key] = []
+          deepCopy(newObj[key], obj[key])
+        } else if (obj[key] instanceof Object) {
+          newObj[key] = {}
+          deepCopy(newObj[key], obj[key])
+        } else {
+          newObj[key] = obj[key]
+        }
+      }
+    }
+    deepCopy(newParseData, parseData)
+    console.log(newParseData.name = '123', newParseData.class.name = '452', parseData, newParseData)
+  </script>
+</body>
+
+</html>
