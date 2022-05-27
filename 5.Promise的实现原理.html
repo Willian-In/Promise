@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <script>
+    /**
+     * 使用js实现then、catch的实现 
+     */
+    function MyPromise (fn) {
+      this.promiseState = 'pending'
+      this.promiseResult = undefined
+      this.thenCallback = undefined
+      this.errCallback = undefined
+      const _this = this
+      const resolve = value => {
+        // 改变Promise的状态，并且设置Promise的值 
+        if (this.promiseState == 'pending') {
+          // console.log('resolve执行')
+          this.promiseState = 'fulfiled'
+          this.promiseResult = value
+          // 判断返回的是否是实例对象
+          if (value instanceof MyPromise) {
+            // 如果是的话通过then拿到Promise对象传过来的值
+            // 然后机械下一步then调用
+            value.then((res => {
+              if (_this.thenCallback) {
+                _this.thenCallback(res)
+              }
+            }))
+
+          } else {
+            // 如果不是 则正常调用链式触发下一步then
+            setTimeout(() => { // 在resolve执行的时候 将then回调挂载，形成异步
+              if (_this.thenCallback) {
+                _this.thenCallback(value)
+              }
+            })
+          }
+        }
+
+      }
+      const reject = (errValue) => {
+        if (this.promiseState == 'pending') {
+          this.promiseState = 'rejected'
+          this.promiseResult = errValue
+          // 如果有调用catch 则正常返回err信息
+          setTimeout(() => {
+            // 如果有调用catch则向下执行
+            if (_this.errCallback) {
+              _this.errCallback(errValue)
+            } else if (_this.thenCallback) {
+              // 如果在调用catch之前调用了then那么调用thenCallback，将流程往下走
+              _this.thenCallback(errValue)
+            } else {
+              // 没有调用catch则控制台打印报错
+              throw ('没有调用catch')
+            }
+          });
+        }
+      }
+      if (fn) {
+        fn(resolve, reject)
+      }
+    }
+
+    MyPromise.prototype.then = function (callback) {
+      // 每次触发then都重新返回一个新的Promise实例处理
+      return new MyPromise((resolve, reject) => {
+        this.thenCallback = value => {
+          // 判断当前promise的状态，如果失败，则继续调用reject向下执行
+          if (this.promiseState === 'rejected') {
+            reject(value)
+          } else {
+            // 在触发当前Promise的resolve时，调用then中的回调并且将回调的返回值交给下一个then作为参数
+            const res = callback(value)
+            // 处理某一个then返回的结果是一个promise对象 并且这个对象还是rejected状态
+            if (res instanceof MyPromise && res.promiseState == 'rejected') {
+              // 捕获catch并且将结果传递到下一个promise对象当中
+              res.catch(err => {
+                reject(err)
+              })
+            } else {
+              resolve(res)
+            }
+          }
+        }
+      })
+    }
+
+    MyPromise.prototype.catch = function (callback) {
+      this.errCallback = value => {
+        callback(value)
+      }
+    }
+
+    MyPromise.resolve = (value) => {
+      return new MyPromise((resolve, reject) => {
+        resolve(vlaue)
+      })
+    }
+
+    MyPromise.reject = (errValue) => {
+      return new MyPromise((resolve, reject) => {
+        reject(errValue)
+      })
+    }
+
+    MyPromise.all = promiseArr => {
+      return new Promise((resolve, reject) => {
+        let valueArr = []
+        // all的用途是分析我们所有的Promise对象什么时候完成
+        console.log(promiseArr)
+        promiseArr.forEach((item, index) => {
+          item.then(res => {
+            // 当没完成一个promise对象把返回值放在相对应的数组索引当中去
+            valueArr[index] = res
+            // every当数组中某一项都符合是 返回一个布尔值
+            const allSuccess = promiseArr.every(promiseItem => {
+              return promiseItem.promiseState == 'fulfiled'
+            })
+            // 当所有的对象都完成了之后 我们要将数组返回出去
+            if (allSuccess) {
+              resolve(valueArr)
+            }
+            // 如果当中有错误，直接触发catch
+          }).catch(err => {
+            reject(err)
+          })
+        })
+      })
+    }
+
+    MyPromise.race = promiseArr => {
+      return new Promise((resolve, reject) => {
+        // race直接对每一个Promise对象进行监听，只要有完成或者失败的就继续
+        promiseArr.forEach((item, index) => {
+          item.then(res => {
+            resolve(res)
+            // 如果当中有错误，直接触发catch
+          }).catch(err => {
+            reject(err)
+          })
+        })
+      })
+    }
+
+
+    /**
+     * fn: Generator函数对象
+     */
+
+    function generatorFunctionRnner(fn){
+      // 定义分布对象
+      const generator = fn()
+      // 执行到第一个yield
+      const step = generator.next()
+      // 定义递归函数
+      function loop(stepArg, generator) {
+        // 获取本次的yield右侧结果
+        let value = stepArg.value
+        // 判断结果是不是Promise对象
+        if(value instanceof MyPromise) { // 可改造的点 如果用Promise就改成Pormise
+          // 如果是promise对象就在then函数的回调中获取本次的结果
+          // 并且等待回调执行的时候进入下一次递归
+          value.then(promiseValue => {
+            if (stepArg.done == false) {
+              loop(generator.next(promiseValue), generator)
+            }
+          })
+
+        } else {
+          // 判断程序没有执行完就将本次的结果传入下一步进入下一次递归
+          if (stepArg.done == false) {
+            loop(generator.next(stepArg.value), generator)
+          }
+        }
+      }
+      // 执行动态调用
+      loop(step, generator)
+    }
+
+    // 测试resolve和then的链式调用
+
+    // const p = new MyPromise((resolve, reject) => {
+    //   resolve('传给Promise的值')
+    // })
+
+    // console.log(p)
+    // p.then(res => {
+    //   console.log('第一个then执行')
+    //   console.log(res);
+    //   return new MyPromise((resolve, reject) => {
+    //     setTimeout(() => {
+    //       resolve(123)
+    //     }, 1000)
+    //   })
+    // }).then(res => {
+    //   console.log('第二个then执行')
+    //   console.log(res);
+    //   return new MyPromise((resolve, reject) => {
+    //     setTimeout(() => {
+    //       resolve(456)
+    //     }, 1000)
+    //   })
+    // }).then(res => {
+    //   console.log('第三个then执行')
+    //   console.log(res);
+    //   return '789'
+    // })
+
+    // const p2 = new MyPromise((resolve, reject) => {
+    //   // reject('返回错误信息')
+    //   resolve('测试中途失败')
+    // })
+    // p2.then(res => {
+    //   console.log('第一个then')
+    //   return MyPromise.reject('中途失败了')
+    // }).then(res => {
+    //   console.log('第二个then')
+    // }).then(res => {
+    //   console.log('第三个then')
+    // }).catch(res => {
+    //   console.log(res)
+    // })
+
+    //  模拟all原理
+    // const p1 = new MyPromise((resolve, reject) => {
+    //   setTimeout(() => {
+    //     resolve('第一个promise执行完毕')
+    //   }, 2000);
+    // })
+    // const p2 = new MyPromise((resolve, reject) => {
+    //   setTimeout(() => {
+    //     resolve('第二个promise执行完毕')
+    //   }, 1000);
+    // })
+    // const p3 = new MyPromise((resolve, reject) => {
+    //   setTimeout(() => {
+    //     resolve('第三个promise执行完毕')
+    //   }, 3000);
+    // })
+
+    // MyPromise.race([p1, p2, p3]).then(res => {
+    //   console.log(res, '----------res')
+    // })
+
+    function * test() {
+      let res1 = yield new MyPromise((resolve, reject) => {
+        setTimeout(() => {
+          resolve('第一秒')
+        }, 1000)
+      })
+      console.log(res1, '1');
+      let res2 = yield new MyPromise((resolve, reject) => {
+        setTimeout(() => {
+          resolve('第二秒')
+        }, 1000)
+      })
+      console.log(res2, '2');
+      let res3 = yield new MyPromise((resolve, reject) => {
+        setTimeout(() => {
+          resolve('第三秒')
+        }, 1000)
+      })
+      console.log(res3, '3');
+    }
+    // generator的升级版
+    async function  test() {
+      console.log('开始')
+      let res1 = await new MyPromise((resolve, reject) => {
+        console.log('调用了');
+        setTimeout(() => {
+          resolve('第一秒')
+        }, 1000)
+      })
+      console.log(res1, '1');
+      let res2 = await new MyPromise((resolve, reject) => {
+        setTimeout(() => {
+          resolve('第二秒')
+        }, 1000)
+      })
+      console.log(res2, '2');
+      let res3 = await new MyPromise((resolve, reject) => {
+        setTimeout(() => {
+          resolve('第三秒')
+        }, 1000)
+      })
+      console.log(res3, '3');
+    }
+
+    test()
+    // generatorFunctionRnner(test)
+  </script>
+</body>
+
+</html>
